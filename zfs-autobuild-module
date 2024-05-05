@@ -38,10 +38,10 @@ build_zfs()
 
   # If "auto" is selected for ZFS version, check for the latest stable release:
   if [ "${ZFSAB_ZFS_VERSION}" == "auto" ]; then
-  
+
     ZFSAB_ZFS_VERSION="$(curl -s "https://release-monitoring.org/api/v2/versions/?project_id=11706" | jq --raw-output '.stable_versions[0]' 2> /dev/null)"
     echo "ZFS Autobuild: Automatic ZFS version gathered is: ${ZFSAB_ZFS_VERSION}"
-  
+
   fi
 
   # If "auto" is slected for the builder image version, check for the latest stable release:
@@ -49,16 +49,15 @@ build_zfs()
 
     ZFSAB_BUILDER_VERSION=$(curl -s "https://builds.coreos.fedoraproject.org/streams/stable.json" | jq -r '.architectures.x86_64.artifacts.metal.release' | cut -d '.' -f 1)
     echo "ZFS Autobuild: Automatic build image version is: ${ZFSAB_BUILDER_VERSION}"
-  
+
   fi
 
   # Check if the user has specified "--force" flag:
   if [ "${ZFSAB_FORCE_REBUILD}" = "true" ]; then
-  
+
     echo "ZFS Autobuild: --force specified, removing build container / source / RPMs for current kernel + version."
-    if podman pod exists zfs-autobuild &>/dev/null; then
-      podman rm zfs-autobuild
-    fi
+
+    podman rm -i zfs-autobuild
 
     if [ -f "/etc/zfs-autobuild/last-installed-version" ]; then
       rm -f /etc/zfs-autobuild/last-installed-version
@@ -77,8 +76,6 @@ build_zfs()
   echo "ZFS Autobuild: Build / check running..."
   echo "ZFS Autobuild: Detected kernel version: ${ZFSAB_KERNEL_VERSION}"
   echo "ZFS Autobuild: Target ZFS version: ${ZFSAB_ZFS_VERSION}"
-
-
 
   # Check if a copy of the ZFS RPMs have been built for the current kenel and ZFS version combination:
   if [ -d "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/" ]; then
@@ -105,8 +102,8 @@ build_zfs()
     chmod u+x /etc/zfs-autobuild/zfs-autobuild.sh
 
     # Check if a build container already exists:
-    if podman pod exists zfs-autobuild &>/dev/null; then
-      podman exec \
+    if podman ps -a | grep zfs-autobuild &>/dev/null; then
+      podman start zfs-autobuild && podman exec \
         -e ZFSAB_KERNEL_VERSION="${ZFSAB_KERNEL_VERSION}" \
         -e ZFSAB_ZFS_VERSION="${ZFSAB_ZFS_VERSION}" \
         zfs-autobuild /zfs-autobuild.sh
@@ -123,8 +120,8 @@ build_zfs()
     fi
 
     # Remove the 'zfs-autobuild' container if the user has specified automatic removal:
-    if [ ${ZFSAB_RETAIN_BUILD_CONTAINER} = "false" ] && podman pod exists zfs-autobuild &>/dev/null; then
-      podman rm zfs-autobuild
+    if [ ${ZFSAB_RETAIN_BUILD_CONTAINER} = "false" ]; then
+      podman rm -i zfs-autobuild
     fi
   fi
 
