@@ -29,6 +29,9 @@ source /etc/zfs-autobuild/zfs-autobuild.conf
 
 build_zfs()
 {
+  # Create the directories for RPMs and source if they don't exist yet:
+  mkdir -p /etc/zfs-autobuild/src/ &>/dev/null
+  mkdir -p /etc/zfs-autobuild/rpms/ &>/dev/null
 
   # Set the kernel version for the current run:
   ZFSAB_KERNEL_VERSION=$(uname -r)

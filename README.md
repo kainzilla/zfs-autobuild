@@ -1,6 +1,6 @@
 # zfs-autobuild
 
-A script designed to be used with Fedora CoreOS (an immutable OS) to check for and build the ZFS kernel modules and supporting software during boot time _if_ the current kernel version and ZFS version might have changed (such as OS updates). This is based on the [Atomic WireGuard](https://github.com/jdoss/atomic-wireguard/) script. This is a sort of workaround for the lack of DKMS support on immutable OSes combined with the fact that ZFS won't be included in the Linux kernel anytime soon.
+A script designed to be used with Fedora CoreOS (an immutable OS) to check for and build the ZFS kernel modules and supporting software during boot time _if_ the current kernel version and ZFS version might have changed (such as OS updates). This is based on the [Atomic WireGuard](https://github.com/jdoss/atomic-wireguard/) script with hints on what works from the CoreOS [layering-examples Containerfile](https://github.com/coreos/layering-examples/blob/main/build-zfs-module/Containerfile). This is a sort of workaround for the lack of DKMS support on immutable OSes combined with the fact that ZFS won't be included in the Linux kernel anytime soon.
 
 This script runs the ZFS build process for your current kernel version from sources, inside of a container to keep your system clean, and keeps older copies of ZFS source and ZFS RPMs for a configurable duration of time. The automatic cleanup defaults versions that haven't been used in more than 180 days since last-use of that specific kernel+version combo.
 
@@ -10,6 +10,8 @@ Caveats:
 * I can't imagine this script will work for Linux installs with ZFS for the root partition - I  personally use this for ZFS support on non-OS disks.
 
 ## Installation
+
+Installation for a typical system with `make` available:
 
 ```bash
 # git clone https://github.com/kainzilla/zfs-autobuild.git
@@ -23,6 +25,8 @@ Before you enable the systemd service, you can check the configuration file loca
 # systemctl daemon-reload
 # systemctl enable --now zfs-autobuild.service
 ```
+
+Installation instructions for immutable systems are in progress.
 
 ## Usage
 
