@@ -12,7 +12,7 @@ Caveats:
 ## Installation
 
 ```bash
-# git clone git://github.com/kainzilla/zfs-autobuild.git
+# git clone https://github.com/kainzilla/zfs-autobuild.git
 # cd zfs-autobuild
 # make install
 ```
