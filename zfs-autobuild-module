@@ -60,18 +60,9 @@ build_zfs()
     echo "ZFS Autobuild: --force specified, removing build container / source / RPMs for current kernel + version."
 
     podman rm -i zfs-autobuild
-
-    if [ -f "/etc/zfs-autobuild/last-installed-version" ]; then
-      rm -f /etc/zfs-autobuild/last-installed-version
-    fi
-
-    if [ -f "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" ]; then
-      rm -f "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz"
-    fi
-
-    if [ -d "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/" ]; then
-      rm -rf "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/"
-    fi
+    rm -f /etc/zfs-autobuild/last-installed-version
+    rm -f "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz"
+    rm -rf "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/"
 
   fi
 
@@ -122,7 +113,7 @@ build_zfs()
     fi
 
     # Remove the 'zfs-autobuild' container if the user has specified automatic removal:
-    if [ ${ZFSAB_RETAIN_BUILD_CONTAINER} = "false" ]; then
+    if [ "${ZFSAB_RETAIN_BUILD_CONTAINER}" = "false" ]; then
       podman rm -i zfs-autobuild
     fi
   fi
@@ -194,9 +185,9 @@ install_zfs()
 
   # Attempt install with built uninstall / install lists:
   if [ "${ZFSAB_UNINSTALL_LIST}" = "" ]; then
-    rpm-ostree install "${ZFSAB_INSTALL_LIST}"
+    rpm-ostree install ${ZFSAB_INSTALL_LIST}
   else
-    rpm-ostree install "${ZFSAB_INSTALL_LIST}" --uninstall "${ZFSAB_UNINSTALL_LIST}"
+    rpm-ostree install ${ZFSAB_INSTALL_LIST} --uninstall ${ZFSAB_UNINSTALL_LIST}
   fi
 
   # Error and exit if the above install fails:
@@ -220,7 +211,7 @@ uninstall_zfs()
   if [ "${ZFSAB_UNINSTALL_LIST}" = "" ]; then
     echo "No RPMs from zfs-autobuild.conf list were found; ZFS may already be uninstalled."
   else
-    rpm-ostree uninstall "${ZFSAB_UNINSTALL_LIST}"
+    rpm-ostree uninstall ${ZFSAB_UNINSTALL_LIST}
   fi
 
   # Error and exit if the above install fails:
@@ -249,7 +240,7 @@ load_zfs()
   # Attempt to run depmod -a for ZFS if it's not already loaded:
   echo "ZFS Autobuild: Loading ZFS kernel module..."
   if ! lsmod | grep "zfs" &> /dev/null; then
-    depmod -a "$(rpm -qa kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')"
+    insmod zfs
   fi
 
   # If the modules-load.d configuration file doesn't exist, create it:
