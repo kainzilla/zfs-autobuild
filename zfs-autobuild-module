@@ -33,6 +33,28 @@ build_zfs()
   mkdir -p /etc/zfs-autobuild/src/ &>/dev/null
   mkdir -p /etc/zfs-autobuild/rpms/ &>/dev/null
 
+  # Check if the user has specified "--force" flag:
+  if [ "${ZFSAB_FORCE_REBUILD}" = "true" ]; then
+    echo "ZFS Autobuild: --force specified, removing build container / source / RPMs for current kernel + version."
+    if podman pod exists zfs-autobuild &>/dev/null; then
+      podman rm zfs-autobuild
+    fi
+
+    if [ -f "/etc/zfs-autobuild/last-installed-version" ]; then
+      rm -f /etc/zfs-autobuild/last-installed-version
+    fi
+
+    if [ -f "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" ]; then
+      rm -f "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz"
+    fi
+
+    if [ -d "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/" ]; then
+      rm -rf "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/"
+    fi
+
+  fi
+
+
   # Set the kernel version for the current run:
   ZFSAB_KERNEL_VERSION=$(uname -r)
 
@@ -69,26 +91,41 @@ build_zfs()
     echo "ZFS Autobuild: ${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION} was not found, proceeding with build."
 
     # Container mounts must be labeled container_file_t if SELinux is enabled:
-    if [ $(which sestatus &>/dev/null) ] && [ $(which chcon &>/dev/null) ] && [ $(sestatus | grep "SELinux status:" | grep "enabled" &>/dev/null) ]; then
+    if which sestatus &>/dev/null && \
+       which chcon &>/dev/null && \
+       sestatus | grep "SELinux status:" | grep "enabled" &>/dev/null; then
+
       chcon -R -t container_file_t /etc/zfs-autobuild/rpms
       chcon -R -t container_file_t /etc/zfs-autobuild/src
       chcon -t container_file_t /etc/zfs-autobuild/zfs-autobuild.sh
+
     fi
 
     # Ensure /etc/zfs-autobuild/zfs-autobuild.sh is executable:
     chmod u+x /etc/zfs-autobuild/zfs-autobuild.sh
 
-    # Run a container to build ZFS and send to /etc/zfs-autobuild/rpms:
-    podman run --rm \
-      --name=zfs-autobuild \
-      -e ZFSAB_KERNEL_VERSION="${ZFSAB_KERNEL_VERSION}" \
-      -e ZFSAB_ZFS_VERSION="${ZFSAB_ZFS_VERSION}" \
-      -e ZFSAB_BUILDER_VERSION="${ZFSAB_BUILDER_VERSION}" \
-      -v /etc/zfs-autobuild/rpms:/rpms:z \
-      -v /etc/zfs-autobuild/src:/src:z \
-      -v /etc/zfs-autobuild/zfs-autobuild.sh:/zfs-autobuild.sh:z \
-      "registry.fedoraproject.org/fedora:${ZFSAB_BUILDER_VERSION}" /zfs-autobuild.sh
+    # Check if a build container already exists:
+    if podman pod exists zfs-autobuild &>/dev/null; then
+      podman exec \
+        -e ZFSAB_KERNEL_VERSION="${ZFSAB_KERNEL_VERSION}" \
+        -e ZFSAB_ZFS_VERSION="${ZFSAB_ZFS_VERSION}" \
+        zfs-autobuild /zfs-autobuild.sh
+    else
+      # Run a new container to build ZFS and send to /etc/zfs-autobuild/rpms:
+      podman run \
+        --name=zfs-autobuild \
+        -e ZFSAB_KERNEL_VERSION="${ZFSAB_KERNEL_VERSION}" \
+        -e ZFSAB_ZFS_VERSION="${ZFSAB_ZFS_VERSION}" \
+        -v /etc/zfs-autobuild/rpms:/rpms:z \
+        -v /etc/zfs-autobuild/src:/src:z \
+        -v /etc/zfs-autobuild/zfs-autobuild.sh:/zfs-autobuild.sh:z \
+        "registry.fedoraproject.org/fedora:${ZFSAB_BUILDER_VERSION}" /zfs-autobuild.sh
+    fi
 
+    # Remove the 'zfs-autobuild' container if the user has specified automatic removal:
+    if [ ${ZFSAB_RETAIN_BUILD_CONTAINER} = "false" ] && podman pod exists zfs-autobuild &>/dev/null; then
+      podman rm zfs-autobuild
+    fi
   fi
 
 
@@ -159,6 +196,11 @@ load_zfs()
 
 case "$1" in
         build)
+          # Check for --force option:
+          if [ "$2" = "--force" ]; then
+            ZFSAB_FORCE_REBUILD="true"
+          fi
+
           build_zfs
         ;;
 
@@ -180,9 +222,10 @@ case "$1" in
           echo $"ZFS Autobuild: Unknown command. Exiting."
           echo "Usage:"
           echo ""
-          echo "build       Build and install ZFS."
-          echo "load        Load ZFS kernel module."
-          echo "unload      Unload ZFS kernel module."
-          echo "reload      Rebuild and reload ZFS module."
+          echo "build          Build and install ZFS."
+          echo "build --force  Remove build for current kernel + source and rebuild."
+          echo "load           Load ZFS kernel module."
+          echo "unload         Unload ZFS kernel module."
+          echo "reload         Rebuild and reload ZFS module."
           exit 1
 esac
