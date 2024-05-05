@@ -1,12 +1,20 @@
+# This file can be used with 'butane' to generate a MachineConfig
+# file to provision OpenShift / OKD systems. After reviewing this
+# file for correctness, run ./ignition-creator in the source directory
+# to create a YAML file.
+---
 variant: openshift
 version: 4.15.0
 metadata:
   name: 99-zfs-autobuild
   labels:
+    # Uncomment whichever role applies for the system you're installing to:
     machineconfiguration.openshift.io/role: master
+    # machineconfiguration.openshift.io/role: worker
 storage:
   trees:
     - local: zfs-autobuild-tree
+# If the automatic-build service is not desired, comment this out:
 systemd:
   units:
     - name: zfs-autobuild.service
