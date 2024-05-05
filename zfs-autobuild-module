@@ -72,15 +72,15 @@ build_zfs()
     if [ $(which sestatus &>/dev/null) ] && [ $(which chcon &>/dev/null) ] && [ $(sestatus | grep "SELinux status:" | grep "enabled" &>/dev/null) ]; then
       chcon -R -t container_file_t /etc/zfs-autobuild/rpms
       chcon -R -t container_file_t /etc/zfs-autobuild/src
-      chcon -t container_file_t /etc/zfs-autobuild/build-script.sh
+      chcon -t container_file_t /etc/zfs-autobuild/zfs-autobuild.sh
     fi
 
-    # Ensure /etc/zfs-autobuild/build-script.sh is executable:
-    chmod u+x /etc/zfs-autobuild/build-script.sh
+    # Ensure /etc/zfs-autobuild/zfs-autobuild.sh is executable:
+    chmod u+x /etc/zfs-autobuild/zfs-autobuild.sh
 
     # Run a container to build ZFS and send to /etc/zfs-autobuild/rpms:
     podman run -d --rm \
-      --name=zfs-builder \
+      --name=zfs-autobuild \
       -e ZFSAB_KERNEL_VERSION="${ZFSAB_KERNEL_VERSION}" \
       -e ZFSAB_ZFS_VERSION="${ZFSAB_ZFS_VERSION}" \
       -e ZFSAB_BUILDER_VERSION="${ZFSAB_BUILDER_VERSION}" \
@@ -97,9 +97,9 @@ build_zfs()
   if [ ! -f /etc/zfs-autobuild/last-installed-version ] || [ "$(cat /etc/zfs-autobuild/last-installed-version 2>/dev/null)" != "${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}" ]; then
     
     echo "ZFS Autobuild: last-installed-version is not ${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}, installing RPMs."
-    rpm-ostree install "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/*.$(rpm -qa kernel --queryformat '%{ARCH}').rpm" && \
-    
+
     # Record the last version installed, and touch the source archive and RPMs to record that they're still useful:
+    rpm-ostree install /etc/zfs-autobuild/rpms/"${ZFSAB_KERNEL_VERSION}"-"${ZFSAB_ZFS_VERSION}"/*."$(rpm -qa kernel --queryformat '%{ARCH}')".rpm && \
     echo "${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}" > /etc/zfs-autobuild/last-installed-version && \
     touch "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" && \
     touch /etc/zfs-autobuild/rpms/"${ZFSAB_KERNEL_VERSION}"-"${ZFSAB_ZFS_VERSION}"/*
