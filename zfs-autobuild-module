@@ -33,28 +33,6 @@ build_zfs()
   mkdir -p /etc/zfs-autobuild/src/ &>/dev/null
   mkdir -p /etc/zfs-autobuild/rpms/ &>/dev/null
 
-  # Check if the user has specified "--force" flag:
-  if [ "${ZFSAB_FORCE_REBUILD}" = "true" ]; then
-    echo "ZFS Autobuild: --force specified, removing build container / source / RPMs for current kernel + version."
-    if podman pod exists zfs-autobuild &>/dev/null; then
-      podman rm zfs-autobuild
-    fi
-
-    if [ -f "/etc/zfs-autobuild/last-installed-version" ]; then
-      rm -f /etc/zfs-autobuild/last-installed-version
-    fi
-
-    if [ -f "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" ]; then
-      rm -f "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz"
-    fi
-
-    if [ -d "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/" ]; then
-      rm -rf "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/"
-    fi
-
-  fi
-
-
   # Set the kernel version for the current run:
   ZFSAB_KERNEL_VERSION=$(uname -r)
 
@@ -72,6 +50,28 @@ build_zfs()
     ZFSAB_BUILDER_VERSION=$(curl -s "https://builds.coreos.fedoraproject.org/streams/stable.json" | jq -r '.architectures.x86_64.artifacts.metal.release' | cut -d '.' -f 1)
     echo "ZFS Autobuild: Automatic build image version is: ${ZFSAB_BUILDER_VERSION}"
   
+  fi
+
+  # Check if the user has specified "--force" flag:
+  if [ "${ZFSAB_FORCE_REBUILD}" = "true" ]; then
+  
+    echo "ZFS Autobuild: --force specified, removing build container / source / RPMs for current kernel + version."
+    if podman pod exists zfs-autobuild &>/dev/null; then
+      podman rm zfs-autobuild
+    fi
+
+    if [ -f "/etc/zfs-autobuild/last-installed-version" ]; then
+      rm -f /etc/zfs-autobuild/last-installed-version
+    fi
+
+    if [ -f "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" ]; then
+      rm -f "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz"
+    fi
+
+    if [ -d "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/" ]; then
+      rm -rf "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/"
+    fi
+
   fi
 
   echo "ZFS Autobuild: Build / check running..."

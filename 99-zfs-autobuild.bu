@@ -3,7 +3,7 @@ version: 4.15.0
 metadata:
   name: 99-zfs-autobuild
   labels:
-    machineconfiguration.openshift.io/role: worker
+    machineconfiguration.openshift.io/role: master
 storage:
   trees:
     - local: zfs-autobuild-tree
