@@ -10,7 +10,7 @@ dnf update -y && \
         dnf install -y jq dkms gcc make autoconf automake libtool rpm-build libtirpc-devel libblkid-devel \
         libuuid-devel libudev-devel openssl-devel zlib-devel libaio-devel libattr-devel elfutils-libelf-devel \
         "kernel-${ZFSAB_KERNEL_VERSION}" "kernel-modules-${ZFSAB_KERNEL_VERSION}" "kernel-devel-${ZFSAB_KERNEL_VERSION}" \
-        python3 python3-devel python3-setuptools python3-cffi libffi-devel git ncompress libcurl-devel
+        python3 python3-devel python3-setuptools python3-cffi libffi-devel git ncompress libcurl-devel rsync
 
 # If it doesn't exist in the /src folder, download the specified version of ZFS:
 if [ ! -f "/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" ]; then
@@ -30,10 +30,10 @@ cd /zfs/ || exit
         make -j1 rpm-utils rpm-kmod
 
 # Clean up unneeded RPMs:
-rm /zfs/*devel*.rpm /zfs/zfs-test*.rpm
+rm -f /zfs/*devel*.rpm /zfs/zfs-test*.rpm /zfs/*debug*.rpm
 
 # Make a folder for the version being created:
 mkdir "/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}"
 
 # Copy the built RPMs to the externally-accessible volume at /rpms:
-cp /zfs/*.rpm "/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/"
+rsync /zfs/*.rpm "/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/"
