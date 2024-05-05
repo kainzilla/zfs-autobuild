@@ -33,8 +33,10 @@ build_zfs()
   mkdir -p /etc/zfs-autobuild/src/ &>/dev/null
   mkdir -p /etc/zfs-autobuild/rpms/ &>/dev/null
 
-  # Set the kernel version for the current run:
-  ZFSAB_KERNEL_VERSION=$(uname -r)
+  # If the user hasn't provided a version, set the kernel version for the current run:
+  if [ "${ZFSAB_KERNEL_VERSION}" = "" ]; then
+    ZFSAB_KERNEL_VERSION=$(uname -r)
+  fi
 
   # If "auto" is selected for ZFS version, check for the latest stable release:
   if [ "${ZFSAB_ZFS_VERSION}" == "auto" ]; then
@@ -132,11 +134,8 @@ build_zfs()
     
     echo "ZFS Autobuild: last-installed-version is not ${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}, installing RPMs."
 
-    # Record the last version installed, and touch the source archive and RPMs to record that they're still useful:
-    rpm-ostree install /etc/zfs-autobuild/rpms/"${ZFSAB_KERNEL_VERSION}"-"${ZFSAB_ZFS_VERSION}"/*.rpm && \
-    echo "${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}" > /etc/zfs-autobuild/last-installed-version && \
-    touch "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" && \
-    touch /etc/zfs-autobuild/rpms/"${ZFSAB_KERNEL_VERSION}"-"${ZFSAB_ZFS_VERSION}"/*
+    # Run the install process:
+    install_zfs
     
   else
 
@@ -159,6 +158,75 @@ build_zfs()
     find /etc/zfs-autobuild/src/ -mtime +"${ZFSAB_EXPIRATION_DAYS}" -delete
     find /etc/zfs-autobuild/rpms/ -mtime +"${ZFSAB_EXPIRATION_DAYS}" -delete
 
+  fi
+}
+
+install_zfs()
+{
+  # Setup the install RPM list:
+  ZFSAB_INSTALL_LIST=""
+
+  # Setup the not-found RPM list:
+  ZFSAB_NOT_FOUND=()
+
+  # Check the list of RPMs in zfs-autobuild.conf:
+  for i in "${ZFSAB_EXPECTED_RPMS[@]}"; do
+      if ZFSAB_FOUND=$(find "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/" -regextype egrep -regex '.*'"${i}"'-[0-9]{1}.*.rpm' | grep "${i}"); then
+          if [ "${ZFSAB_INSTALL_LIST}" = "" ]; then
+              ZFSAB_INSTALL_LIST+="$ZFSAB_FOUND"
+          else
+              ZFSAB_INSTALL_LIST+=" $ZFSAB_FOUND"
+          fi
+      else
+          ZFSAB_NOT_FOUND+=("$i")
+      fi
+  done
+
+  # Warn the user and exit if RPMs are missing:
+  if [ "${ZFSAB_NOT_FOUND[0]}" != "" ]; then
+    echo "ZFS Autobuild: Some RPMs mey be missing from /etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}:"
+    echo "${ZFSAB_NOT_FOUND[@]}"
+    exit
+  fi
+
+  # Get our uninstall list:
+  create_uninstall_list
+
+  # Attempt install with built uninstall / install lists:
+  if [ "${ZFSAB_UNINSTALL_LIST}" = "" ]; then
+    rpm-ostree install "${ZFSAB_INSTALL_LIST}"
+  else
+    rpm-ostree install "${ZFSAB_INSTALL_LIST}" --uninstall "${ZFSAB_UNINSTALL_LIST}"
+  fi
+
+  # Error and exit if the above install fails:
+  if [ "$?" != 0 ]; then
+    echo "ZFS Autobuild: Attempted rpm-ostree command failed, exiting..."
+    exit
+  fi
+
+  # Touch the source archive and RPMs to record that they're still useful:
+  echo "${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}" > /etc/zfs-autobuild/last-installed-version && \
+  touch "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" && \
+  touch /etc/zfs-autobuild/rpms/"${ZFSAB_KERNEL_VERSION}"-"${ZFSAB_ZFS_VERSION}"/*
+}
+
+uninstall_zfs()
+{
+  # Get our uninstall list:
+  create_uninstall_list
+
+  # Attempt install with built uninstall / install lists:
+  if [ "${ZFSAB_UNINSTALL_LIST}" = "" ]; then
+    echo "No RPMs from zfs-autobuild.conf list were found; ZFS may already be uninstalled."
+  else
+    rpm-ostree uninstall "${ZFSAB_UNINSTALL_LIST}"
+  fi
+
+  # Error and exit if the above install fails:
+  if [ "$?" != 0 ]; then
+    echo "ZFS Autobuild: Attempted rpm-ostree command failed, exiting..."
+    exit
   fi
 }
 
@@ -190,6 +258,25 @@ load_zfs()
   fi
 }
 
+create_uninstall_list()
+{
+  # Setup the regex match string for jq:
+  ZFSAB_REGEX_STRING=""
+
+  for i in "${ZFSAB_EXPECTED_RPMS[@]}"; do
+      if [ "${ZFSAB_REGEX_STRING}" = "" ]; then
+          ZFSAB_REGEX_STRING+="$i-[0-9]{1}.*"
+      else
+          ZFSAB_REGEX_STRING+="|$i-[0-9]{1}.*"
+      fi
+  done
+
+  # Get list of existing installed packages to remove:
+  if ! ZFSAB_UNINSTALL_LIST=$(rpm-ostree status --jsonpath=.deployments[0].requested-local-packages | jq -r 'flatten[] | select(test("'"${ZFSAB_REGEX_STRING}"'"))'); then
+    echo "ZFS Autobuild: Failed to build an rpm-ostree uninstall list, must exit."
+    exit
+  fi
+}
 
 case "$1" in
         build)
@@ -199,6 +286,14 @@ case "$1" in
           fi
 
           build_zfs
+        ;;
+
+        install)
+          install_zfs
+        ;;
+
+        uninstall)
+          uninstall_zfs
         ;;
 
         load)
@@ -220,9 +315,13 @@ case "$1" in
           echo "Usage:"
           echo ""
           echo "build          Build and install ZFS."
-          echo "build --force  Remove build for current kernel + source and rebuild."
+          echo "build --force  Remove build pod, source, and RPMs before rebuilding."
+          echo "install        Install ZFS RPMs with rpm-ostree."
+          echo "uninstall      Uninstall ZFS RPMs with rpm-ostree."
           echo "load           Load ZFS kernel module."
           echo "unload         Unload ZFS kernel module."
           echo "reload         Rebuild and reload ZFS module."
+          echo ""
+          echo "Shell variable ZFSAB_KERNEL_VERSION can be set to build against a different kernel."
           exit 1
 esac
