@@ -28,6 +28,11 @@ if [ ! -f "/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" ]; then
   curl -L -O "https://github.com/openzfs/zfs/releases/download/zfs-${ZFSAB_ZFS_VERSION}/zfs-${ZFSAB_ZFS_VERSION}.tar.gz"
 fi
 
+# Clean up any prior /zfs folder that exists:
+if [ -d /zfs/ ]; then
+  rm -rf /zfs
+fi
+
 # Extract the selected version:
 cp "/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" / && \
 cd / && \
