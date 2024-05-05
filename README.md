@@ -6,7 +6,7 @@ This script runs the ZFS build process for your current kernel version from sour
 
 Caveats:
 * When the system needs to build ZFS to match your current desired version and kernel, it will delay boot-up while it builds.
-* Although this script technically requires internet access, it tries to keep recently-used copies of the ZFS source to recompile for new kernels in case you've lost internet access at an inopportune time.
+* Internet access is required for the script to successfully download all the build dependencies.
 * I can't imagine this script will work for Linux installs with ZFS for the root partition - I  personally use this for ZFS support on non-OS disks.
 * ZFS appears to have four dependencies that aren't present by default in CoreOS that need to be installed before ZFS can be installed - these aren't yet handled by this script:
     * `lm_sensors-libs`

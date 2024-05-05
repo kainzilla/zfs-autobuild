@@ -79,7 +79,7 @@ build_zfs()
     chmod u+x /etc/zfs-autobuild/zfs-autobuild.sh
 
     # Run a container to build ZFS and send to /etc/zfs-autobuild/rpms:
-    podman run -d --rm \
+    podman run --rm \
       --name=zfs-autobuild \
       -e ZFSAB_KERNEL_VERSION="${ZFSAB_KERNEL_VERSION}" \
       -e ZFSAB_ZFS_VERSION="${ZFSAB_ZFS_VERSION}" \
@@ -99,7 +99,7 @@ build_zfs()
     echo "ZFS Autobuild: last-installed-version is not ${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}, installing RPMs."
 
     # Record the last version installed, and touch the source archive and RPMs to record that they're still useful:
-    rpm-ostree install /etc/zfs-autobuild/rpms/"${ZFSAB_KERNEL_VERSION}"-"${ZFSAB_ZFS_VERSION}"/*."$(rpm -qa kernel --queryformat '%{ARCH}')".rpm && \
+    rpm-ostree install /etc/zfs-autobuild/rpms/"${ZFSAB_KERNEL_VERSION}"-"${ZFSAB_ZFS_VERSION}"/*.rpm && \
     echo "${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}" > /etc/zfs-autobuild/last-installed-version && \
     touch "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" && \
     touch /etc/zfs-autobuild/rpms/"${ZFSAB_KERNEL_VERSION}"-"${ZFSAB_ZFS_VERSION}"/*
