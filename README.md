@@ -2,7 +2,7 @@
 
 A script designed to be used with Fedora CoreOS (an immutable OS) to check for and build the ZFS kernel modules and supporting software during boot time _if_ the current kernel version and ZFS version might have changed (such as OS updates). This is based on the [Atomic WireGuard](https://github.com/jdoss/atomic-wireguard/) script with hints on what works from the CoreOS [layering-examples Containerfile](https://github.com/coreos/layering-examples/blob/main/build-zfs-module/Containerfile). This is a sort of workaround for the lack of DKMS support on immutable OSes combined with the fact that ZFS won't be included in the Linux kernel anytime soon.
 
-This script runs the ZFS build process for your current kernel version from sources, inside of a container to keep your system clean, and keeps older copies of ZFS source and ZFS RPMs for a configurable duration of time. The automatic cleanup defaults versions that haven't been used in more than 180 days since last-use of that specific kernel+version combo.
+This script runs the ZFS build process for your current kernel version from sources, inside of a container to keep your system clean, and keeps older copies of ZFS source and ZFS RPMs for a configurable duration of time. The automatic cleanup defaults to removing versions that haven't been used in more than 180 days since last-use of that specific kernel+version combo.
 
 Caveats:
 * When the system needs to build ZFS to match your current desired version and kernel, it will delay boot-up while it builds.
@@ -26,7 +26,7 @@ Before you enable the systemd service, you can check the configuration file loca
 # systemctl enable --now zfs-autobuild.service
 ```
 
-Installation instructions for immutable systems are in progress.
+Installation instructions for immutable systems are in progress, but the `ignition-creator.sh` script can create MachineConfig files when run on systems with `make` and `butane` installed.
 
 ## Usage
 
