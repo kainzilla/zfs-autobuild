@@ -15,4 +15,4 @@ ExecReload=/etc/zfs-autobuild/zfs-autobuild-module reload
 ExecStop=/etc/zfs-autobuild/zfs-autobuild-module unload
 
 [Install]
-WantedBy=network.target
+WantedBy=multi-user.target
