@@ -3,7 +3,10 @@
 echo "This script will create a MachineConfig manifest to install
 zfs-autobuild on a Ignition-provisioned system such as an
 OpenShift or OKD node - this should be run from a system that
-has [make] and [butane] installed."
+has [make] and [butane] installed.
+
+Check the 99-zfs-autobuild.bu file for correctness, confirming the
+master/woker labling matches your install target."
 
 if [ ! "$(which butane)" ] > /dev/null 2>&1; then
     echo "[butane] not found, please install before running this script."

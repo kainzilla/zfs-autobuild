@@ -1,0 +1,13 @@
+variant: openshift
+version: 4.15.0
+metadata:
+  name: 99-zfs-autobuild
+  labels:
+    machineconfiguration.openshift.io/role: worker
+storage:
+  trees:
+    - local: zfs-autobuild-tree
+systemd:
+  units:
+    - name: zfs-autobuild.service
+      enabled: true
