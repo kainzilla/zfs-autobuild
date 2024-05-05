@@ -7,7 +7,7 @@ Wants=NetworkManager-wait-online.service
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/zfs-autobuild/zfs-autobuild.conf
-TimeoutStartSec=20m
+TimeoutStartSec=35m
 RemainAfterExit=true
 ExecStartPre=/etc/zfs-autobuild/zfs-autobuild-module build
 ExecStart=/etc/zfs-autobuild/zfs-autobuild-module load
