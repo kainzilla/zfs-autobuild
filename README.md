@@ -1,143 +1,46 @@
-# Atomic WireGuard
+# zfs-autobuild
 
-Atomic WireGuard is a containerized method for building the WireGuard kernel module on Fedora Atomic Host and Silverblue. It also can be used on Fedora Workstation instead of the [wireguard-dkms and wireguard-tools](https://copr.fedorainfracloud.org/coprs/jdoss/wireguard/packages/) packages. The end goals of this project is to allow for WireGuard to be built reliably on distributions with immutable file systems. It also can be used as an example for building other kernel modules on immutable infrastructure.
+A script designed to be used with Fedora CoreOS (an immutable OS) to check for and build the ZFS kernel modules and supporting software during boot time _if_ the current kernel version and ZFS version might have changed (such as OS updates). This is based on the [Atomic WireGuard](https://github.com/jdoss/atomic-wireguard/) script. This is a sort of workaround for the lack of DKMS support on immutable OSes combined with the fact that ZFS won't be included in the Linux kernel anytime soon.
 
-This is a work in progress. Please use at your own risk. Issues and PRs are very welcome.
+This script runs the ZFS build process for your current kernel version from sources, inside of a container to keep your system clean, and keeps older copies of ZFS source and ZFS RPMs for a configurable duration of time. The automatic cleanup defaults versions that haven't been used in more than 180 days since last-use of that specific kernel+version combo.
 
-## Limitations
-
-* This will add 5 to 10 minutes of time to your boot process if you do not have the WireGuard kernel module built for your booted kernel version.
-* This will fail to build if you do not have Internet access. Do not use this if you rely on WireGuard for connectivity to the Internet.
-* This is a stopgap until WireGuard gets pushed into the mainline kernel.
-
-## Requirements
-
-* [container-selinux-2.61](https://koji.fedoraproject.org/koji/buildinfo?buildID=1083837) or higher
-* podman 0.5.1 or higher
-* systemd 238 or higher
-* systemd-networkd
+Caveats:
+* When the system needs to build ZFS to match your current desired version and kernel, it will delay boot-up while it builds.
+* Although this script technically requires internet access, but tries to keep recently-used copies of the ZFS source to recompile for new kernels in case you've lost internet access at an inopportune time.
+* I can't imagine this script will work for Linux installs with ZFS for the root partition - I  personally use this for ZFS support on non-OS disks.
 
 ## Installation
 
-### Fedora Atomic Host and Silverblue
-
 ```bash
-# rpm-ostree upgrade
-# sudo curl -Lo /tmp/container-selinux-2.61-1.git9b55129.fc28.noarch.rpm https://kojipkgs.fedoraproject.org/packages/container-selinux/2.61/1.git9b55129.fc28/noarch/container-selinux-2.61-1.git9b55129.fc28.noarch.rpm
-# rpm-ostree upgrade /tmp/container-selinux-2.61-1.git9b55129.fc28.noarch.rpm
-# sudo curl -Lo /etc/yum.repos.d/atomic-wireguard.repo https://copr.fedorainfracloud.org/coprs/jdoss/atomic-wireguard/repo/fedora-28/jdoss-atomic-wireguard-fedora-28.repo
-# sudo rpm-ostree install atomic-wireguard
-# systemctl reboot
-# sudo systemctl enable systemd-networkd.service
-# sudo systemctl start systemd-networkd.service
-# sudo systemctl enable atomic-wireguard
-# sudo systemctl start atomic-wireguard
+# git clone 
+# cd zfs-autobuild
+# make install
 ```
 
-### Fedora Workstation
+Before you enable the systemd service, you can check the configuration file located at `/etc/zfs-autobuild/zfs-autobuild.conf` to confirm if the default settings are right for you. Then enable the systemd service:
 
 ```bash
-# sudo dnf copr enable jdoss/atomic-wireguard
-# sudo dnf install atomic-wireguard
-# sudo systemctl enable systemd-networkd.service
-# sudo systemctl start systemd-networkd.service
-# sudo systemctl enable atomic-wireguard
-# sudo systemctl start atomic-wireguard
+# systemctl daemon-reload
+# systemctl enable --now zfs-autobuild.service
 ```
-
-Note: As soon as the next Fedora Atomic composes come out manually installing `container-selinux-2.61` will get removed from the above steps.
 
 ## Usage
 
-Atomic WireGuard ships an artisanally handcrafted bash script called `atomic-wireguard-module` that calls podman to build the kernel module in a container. It accepts the following arguments:
+The primary control script is located in /etc/zfs-autobuild/ to keep it out of your BASH auto-completions - in case you need to manually trigger the script outside of the systemd service, the following commands are available:
 
 ```bash
-build       Build wireguard kernel module container
-load        Load wireguard kernel module
-unload      Unload wireguard kernel module
-reload      Build and reload wireguard kernel module
+/etc/zfs-autobuild/zfs-autobuild-module build       Build and install ZFS.
+/etc/zfs-autobuild/zfs-autobuild-module load        Load ZFS kernel module.
+/etc/zfs-autobuild/zfs-autobuild-module unload      Unload ZFS kernel module.
+/etc/zfs-autobuild/zfs-autobuild-module reload      Rebuild and reload ZFS module.
 ```
-
-Atomic Wireguard also has a systemd unit file which on start waits for NetworkManager to finish starting up and then it will build and load the WireGuard kernel module. You can also use `systemctl reload atomic-wireguard` to run the build process, unload and then load the kernel module. This is handy if you want to change the WireGuard kernel module version. To change the version, just edit the `WIREGUARD_VERSION` and `WIREGUARD_SHA265` lines in `/etc/sysconfig/atomic-wireguard`. Please note that this needs to be the exact version number and SHA256 hash of a released WireGuard snapshot. You can verify that the kernel module is loaded with `lsmod |grep wireguard`.
-
-### Setting up systemd-networkd
-
-**Generate WireGuard Keys**
-
-`# wg genkey | tee /etc/wireguard/wg0-private.key | wg pubkey > /etc/wireguard/wg0-public.key`
-
-**Create /etc/systemd/network/wg0.netdev**
-
-`# vi /etc/systemd/network/wg0.netdev`
-
-```bash
-[NetDev]
-Name=wg0
-Kind=wireguard
-Description=Atomic WireGuard
-
-[WireGuard]
-PrivateKey=${LOCAL PUBLIC KEY}
-ListenPort=51820
-
-[WireGuardPeer]
-PublicKey=${REMOTE PUBLIC KEY}
-AllowedIPs=0.0.0.0/0
-Endpoint=${REMOTE IP ADDRESS}:51820
-```
-
-Note: Replace `${LOCAL PUBLIC KEY}` with your generated public key stored in `/etc/wireguard/wg0-public.key`. Replace `${REMOTE PUBLIC KEY}` with the public key from the remote WireGuard server and `${REMOTE IP ADDRESS}` from the remote WiredGuard server.
-
-**Create /etc/systemd/network/wg0.network**
-
-`# vi /etc/systemd/network/wg0.network`
-
-```bash
-[Match]
-Name=wg0
-
-[Network]
-Address=10.122.122.1/24
-```
-
-**Fix permissions and reload systemd**
-
-```bash
-# chown root.systemd-network /etc/systemd/network/wg0.*
-# chmod 0640 /etc/systemd/network/wg0.*
-# systemctl daemon-reload
-# systemctl restart systemd-networkd
-```
-
-**Verify WireGuard is working**
-
-```bash
-# wg show wg0
-# networkctl status wg0
-# ip addr show dev wg0
-```
-
-## Troubleshooting
-
-TBD by user feedback.
-
-## Todo
-
-* Write Troubleshooting Guide in README.md based off end user feedback
-
-## Contributing
-
-1. Fork it
-2. Create your feature branch (`git checkout -b my-cool-feature`)
-3. Commit your changes (`git commit -m 'Add a cool feature'`)
-4. Push to the branch (`git push origin my-cool-feature`)
-5. Create new a Pull Request with a detailed description
 
 ## License
 
 The MIT License
 
 Copyright (c) 2019 Joe Doss
+Copyright (c) 2024 kainzilla
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

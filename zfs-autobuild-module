@@ -1,0 +1,185 @@
+#!/bin/bash
+
+# The MIT License
+
+# Copyright (c) 2019 Joe Doss
+# Copyright (c) 2024 kainzilla
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+set -e
+
+source /etc/zfs-autobuild/zfs-autobuild.conf
+
+build_zfs()
+{
+
+  # Set the kernel version for the current run:
+  ZFSAB_KERNEL_VERSION=$(uname -r)
+
+  # If "auto" is selected for ZFS version, check for the latest stable release:
+  if [ "${ZFSAB_ZFS_VERSION}" == "auto" ]; then
+  
+    ZFSAB_ZFS_VERSION="$(curl -s "https://release-monitoring.org/api/v2/versions/?project_id=11706" | jq --raw-output '.stable_versions[0]' 2> /dev/null)"
+    echo "ZFS Autobuild: Automatic ZFS version gathered is: ${ZFSAB_ZFS_VERSION}"
+  
+  fi
+
+  # If "auto" is slected for the builder image version, check for the latest stable release:
+  if [ "${ZFSAB_BUILDER_VERSION}" == "auto" ]; then
+
+    ZFSAB_BUILDER_VERSION=$(curl -s "https://builds.coreos.fedoraproject.org/streams/stable.json" | jq -r '.architectures.x86_64.artifacts.metal.release' | cut -d '.' -f 1)
+    echo "ZFS Autobuild: Automatic build image version is: ${ZFSAB_BUILDER_VERSION}"
+  
+  fi
+
+  echo "ZFS Autobuild: Build / check running..."
+  echo "ZFS Autobuild: Detected kernel version: ${ZFSAB_KERNEL_VERSION}"
+  echo "ZFS Autobuild: Target ZFS version: ${ZFSAB_ZFS_VERSION}"
+
+
+
+  # Check if a copy of the ZFS RPMs have been built for the current kenel and ZFS version combination:
+  if [ -d "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/" ]; then
+
+    echo "ZFS Autobuild: Existing /etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION} found."
+
+  # Build ZFS RPMs if a match was not found:
+  else
+
+    echo "ZFS Autobuild: ${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION} was not found, proceeding with build."
+
+    # Container mounts must be labeled container_file_t if SELinux is enabled:
+    if [ $(which sestatus &>/dev/null) ] && [ $(which chcon &>/dev/null) ] && [ $(sestatus | grep "SELinux status:" | grep "enabled" &>/dev/null) ]; then
+      chcon -R -t container_file_t /etc/zfs-autobuild/rpms
+      chcon -R -t container_file_t /etc/zfs-autobuild/src
+      chcon -t container_file_t /etc/zfs-autobuild/build-script.sh
+    fi
+
+    # Ensure /etc/zfs-autobuild/build-script.sh is executable:
+    chmod u+x /etc/zfs-autobuild/build-script.sh
+
+    # Run a container to build ZFS and send to /etc/zfs-autobuild/rpms:
+    podman run -d --rm \
+      --name=zfs-builder \
+      -e ZFSAB_KERNEL_VERSION="${ZFSAB_KERNEL_VERSION}" \
+      -e ZFSAB_ZFS_VERSION="${ZFSAB_ZFS_VERSION}" \
+      -e ZFSAB_BUILDER_VERSION="${ZFSAB_BUILDER_VERSION}" \
+      -v /etc/zfs-autobuild/rpms:/rpms:z \
+      -v /etc/zfs-autobuild/src:/src:z \
+      -v /etc/zfs-autobuild/zfs-autobuild.sh:/zfs-autobuild.sh:z \
+      "registry.fedoraproject.org/fedora:${ZFSAB_BUILDER_VERSION}" /zfs-autobuild.sh
+
+  fi
+
+
+
+  # If last-installed-version doesn't match, install the RPMs:
+  if [ ! -f /etc/zfs-autobuild/last-installed-version ] || [ "$(cat /etc/zfs-autobuild/last-installed-version 2>/dev/null)" != "${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}" ]; then
+    
+    echo "ZFS Autobuild: last-installed-version is not ${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}, installing RPMs."
+    rpm-ostree install "/etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/*.$(rpm -qa kernel --queryformat '%{ARCH}').rpm" && \
+    
+    # Record the last version installed, and touch the source archive and RPMs to record that they're still useful:
+    echo "${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}" > /etc/zfs-autobuild/last-installed-version && \
+    touch "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" && \
+    touch /etc/zfs-autobuild/rpms/"${ZFSAB_KERNEL_VERSION}"-"${ZFSAB_ZFS_VERSION}"/*
+    
+  else
+
+    echo "ZFS Autobuild: last-installed-version matches ${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}"
+
+    # Touch the source archive and RPMs to record that they're still useful:
+    touch "/etc/zfs-autobuild/src/zfs-${ZFSAB_ZFS_VERSION}.tar.gz" && \
+    touch /etc/zfs-autobuild/rpms/"${ZFSAB_KERNEL_VERSION}"-"${ZFSAB_ZFS_VERSION}"/*
+
+  fi
+
+
+
+  # If a clean-up date is set, clean up old source and RPM files:
+  if [ "${ZFSAB_EXPIRATION_DAYS}" -eq "${ZFSAB_EXPIRATION_DAYS}" ] && [ "${ZFSAB_EXPIRATION_DAYS}" -gt 0 ] 2>/dev/null; then
+
+    echo "ZFS Autobuild: Cleaning up files older than ${ZFSAB_EXPIRATION_DAYS} days..."
+
+    # Clean up /etc/zfs-autobuild/src/ directory:
+    find /etc/zfs-autobuild/src/ -mtime +"${ZFSAB_EXPIRATION_DAYS}" -delete
+    find /etc/zfs-autobuild/rpms/ -mtime +"${ZFSAB_EXPIRATION_DAYS}" -delete
+
+  fi
+}
+
+unload_zfs()
+{
+  # Attempt to unload the module if present:
+  echo "ZFS Autobuild: Attempting to unload ZFS kernel module..."
+  if lsmod | grep "zfs" &> /dev/null; then
+    rmmod zfs
+  fi
+
+  # If the modules-load.d configuration file exists, remove it:
+  if [ -e /etc/modules-load.d/zfs-autobuild.conf ]; then
+    rm /etc/modules-load.d/zfs-autobuild.conf
+  fi
+}
+
+load_zfs()
+{
+  # Attempt to run depmod -a for ZFS if it's not already loaded:
+  echo "ZFS Autobuild: Loading ZFS kernel module..."
+  if ! lsmod | grep "zfs" &> /dev/null; then
+    depmod -a "$(rpm -qa kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')"
+  fi
+
+  # If the modules-load.d configuration file doesn't exist, create it:
+  if [ ! -e /etc/modules-load.d/zfs-autobuild.conf ]; then
+    echo "zfs" > /etc/modules-load.d/zfs-autobuild.conf
+  fi
+}
+
+
+case "$1" in
+        build)
+          build_zfs
+        ;;
+
+        load)
+          load_zfs
+        ;;
+
+        unload)
+          unload_zfs
+        ;;
+
+        reload)
+          build_zfs
+          unload_zfs
+          load_zfs
+        ;;
+
+        *)
+          echo $"ZFS Autobuild: Unknown command. Exiting."
+          echo "Usage:"
+          echo ""
+          echo "build       Build and install ZFS."
+          echo "load        Load ZFS kernel module."
+          echo "unload      Unload ZFS kernel module."
+          echo "reload      Rebuild and reload ZFS module."
+          exit 1
+esac
