@@ -5,7 +5,6 @@ endif
 
 # Make directories that might not exist:
 $(info $(shell mkdir -p $(CONFDIR)/zfs-autobuild/))
-$(info $(shell mkdir -p $(CONFDIR)/systemd/system/))
 
 # Install the files:
 install:
