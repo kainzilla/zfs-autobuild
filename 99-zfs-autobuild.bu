@@ -14,8 +14,3 @@ metadata:
 storage:
   trees:
     - local: zfs-autobuild-tree
-# If the automatic-build service is not desired, comment this out:
-systemd:
-  units:
-    - name: zfs-autobuild.service
-      enabled: true
