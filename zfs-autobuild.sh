@@ -13,7 +13,7 @@ dnf update -y && \
         dnf install -y jq dkms gcc make autoconf automake libtool rpm-build libtirpc-devel libblkid-devel \
         libuuid-devel libudev-devel openssl-devel zlib-devel libaio-devel libattr-devel elfutils-libelf-devel \
         "kernel-${ZFSAB_KERNEL_VERSION}" "kernel-modules-${ZFSAB_KERNEL_VERSION}" "kernel-devel-${ZFSAB_KERNEL_VERSION}" \
-        python3 python3-devel python3-setuptools python3-cffi libffi-devel git ncompress libcurl-devel rsync dnf-plugins-core
+        python3 python3-devel python3-setuptools python3-cffi libffi-devel git ncompress libcurl-devel
 
 # Check for availability of kernel source for version we're installing for:
 if [ ! -d "/usr/src/kernels/${ZFSAB_KERNEL_VERSION}/" ]; then
@@ -53,9 +53,6 @@ rm -f /zfs/*debug*.rpm
 mkdir -p "/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}"
 
 # Copy the built RPMs to the externally-accessible volume at /rpms:
-rsync /zfs/*."$(rpm -qa kernel --queryformat '%{ARCH}')".rpm \
+cp -f /zfs/*."$(rpm -qa kernel --queryformat '%{ARCH}')".rpm \
         /zfs/zfs-dracut-"${ZFSAB_ZFS_VERSION}"*.rpm \
         "/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/"
-
-# Download required dependencies to the same folder in case needed:
-dnf download lm_sensors-libs pcp-conf pcp-libs sysstat --destdir "/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}/" --arch "$(rpm -qa kernel --queryformat '%{ARCH}')"
