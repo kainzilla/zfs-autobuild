@@ -2,25 +2,16 @@
 
 A script designed to be used with [OKD](https://www.okd.io/)-provided Fedora CoreOS (an immutable OS) to build and install the ZFS kernel modules and supporting software
 
-This script runs the ZFS build process for your current kernel version from sources inside a container. The script keeps older copies of ZFS source and ZFS RPMs in case .
+This script runs the ZFS build process for your current kernel version from sources inside a container. The script keeps older copies of ZFS source and ZFS RPMs in case needed.
 
 ## Installation
 
-Installation for a typical system with `make` available:
+Installation:
 
 ```bash
-# git clone https://github.com/kainzilla/zfs-autobuild.git
-# cd zfs-autobuild
-# make install
-```
-
-Before you enable the systemd service, you can check the configuration file located at `/etc/zfs-autobuild/zfs-autobuild.conf` to confirm if the default settings are right for you. Then enable the systemd service:
-
-```bash
+# git clone https://github.com/kainzilla/zfs-autobuild.git /etc/zfs-autobuild
 # /etc/zfs-autobuild/zfs-autobuild-module build
 ```
-
-Installation instructions for immutable systems are in progress, but the `ignition-creator.sh` script can create MachineConfig files when run on systems with `make` and `butane` installed.
 
 ## Usage
 
