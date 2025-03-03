@@ -3,10 +3,11 @@
 # Source some information about the container OS:
 . /etc/os-release
 
-# Create repo to download build dependencies:
-cd /etc/yum.repos.d || exit
-curl -L -O "https://src.fedoraproject.org/rpms/fedora-repos/raw/f${VERSION_ID}/f/fedora-updates-archive.repo" && \
-        sed -i 's/enabled=AUTO_VALUE/enabled=true/' fedora-updates-archive.repo
+# Add EPEL to cover dependencies:
+dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+
+# Enable Code Ready Build repo:
+dnf config-manager --enable crb
 
 # Install build dependencies:
 dnf update -y && \

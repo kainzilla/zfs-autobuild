@@ -88,7 +88,7 @@ build_zfs()
         -v /etc/zfs-autobuild/rpms:/rpms:z \
         -v /etc/zfs-autobuild/src:/src:z \
         -v /etc/zfs-autobuild/zfs-autobuild.sh:/zfs-autobuild.sh:z \
-        "registry.fedoraproject.org/fedora:${ZFSAB_BUILDER_VERSION}" /zfs-autobuild.sh
+        "${ZFSAB_BUILDER_IMAGE}" /zfs-autobuild.sh
     fi
 
     # Remove the 'zfs-autobuild' container if the user has specified automatic removal:
@@ -154,7 +154,7 @@ install_zfs()
 
   # Warn the user and exit if RPMs are missing:
   if [ "${ZFSAB_NOT_FOUND[0]}" != "" ]; then
-    echo "ZFS Autobuild: Some RPMs mey be missing from /etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}:"
+    echo "ZFS Autobuild: Some RPMs may be missing from /etc/zfs-autobuild/rpms/${ZFSAB_KERNEL_VERSION}-${ZFSAB_ZFS_VERSION}:"
     echo "${ZFSAB_NOT_FOUND[@]}"
     exit
   fi
@@ -262,10 +262,10 @@ if [ "${ZFSAB_ZFS_VERSION}" == "auto" ]; then
 fi
 
 # If "auto" is slected for the builder image version, check for the latest stable release:
-if [ "${ZFSAB_BUILDER_VERSION}" == "auto" ]; then
+if [ "${ZFSAB_BUILDER_IMAGE}" == "auto" ]; then
 
-  ZFSAB_BUILDER_VERSION=$(curl -s "https://builds.coreos.fedoraproject.org/streams/stable.json" | jq -r '.architectures.x86_64.artifacts.metal.release' | cut -d '.' -f 1)
-  echo "ZFS Autobuild: Automatic build image version is: ${ZFSAB_BUILDER_VERSION}"
+  ZFSAB_BUILDER_IMAGE="quay.io/okd/scos-release@sha256:a4c786872daa033c942a56ee437b52b1546abfe5f546754845b805a7cff6c0c4"
+  echo "ZFS Autobuild: Automatic build image version is: ${ZFSAB_BUILDER_IMAGE}"
 
 fi
 
