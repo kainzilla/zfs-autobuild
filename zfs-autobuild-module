@@ -264,7 +264,7 @@ fi
 # If "auto" is slected for the builder image version, check for the latest stable release:
 if [ "${ZFSAB_BUILDER_IMAGE}" == "auto" ]; then
 
-  ZFSAB_BUILDER_IMAGE="quay.io/okd/scos-release@sha256:a4c786872daa033c942a56ee437b52b1546abfe5f546754845b805a7cff6c0c4"
+  ZFSAB_BUILDER_IMAGE="quay.io/okd/scos-content@sha256:bdd8a313544a2f25b93284125f6863477351877758345a1607874bb730aeb2ad"
   echo "ZFS Autobuild: Automatic build image version is: ${ZFSAB_BUILDER_IMAGE}"
 
 fi
